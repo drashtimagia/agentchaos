@@ -1,0 +1,11 @@
+# Slow, occasionally dropped connections.
+schema_version: 1
+rules:
+  - fault: latency
+    probability: 0.3
+    params: {delay_s: 0.05, jitter_s: 0.2}
+  - fault: timeout
+    probability: 0.1
+  - fault: timeout
+    probability: 0.05
+    params: {phase: after}

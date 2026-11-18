@@ -1,0 +1,6 @@
+# An API that sheds load with 429s.
+schema_version: 1
+rules:
+  - fault: rate_limit
+    probability: 0.3
+    params: {retry_after: 1}

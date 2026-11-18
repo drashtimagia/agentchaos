@@ -1,13 +1,16 @@
 import contextlib
+import json
 
 import pytest
 
 from agentchaos.core.faults import (
     RateLimitError,
+    ToolFault,
     ToolTimeoutError,
     UpstreamError,
 )
 from agentchaos.core.models import FaultRule, PolicyConfig
+from agentchaos.core.payload import RawText
 from agentchaos.core.policy import Injector
 
 
@@ -122,3 +125,110 @@ async def test_decision_for_call_n_independent_of_earlier_calls():
         return {e.call_index for e in inj.events if e.call_index >= 2}
 
     assert await fired_at(["a", "b"]) == await fired_at(["x", "y"])
+
+
+# --- Result-shaping faults -------------------------------------------------
+
+
+async def ok_ticket(**kw):
+    return {"id": "T-1", "title": "x", "assignee": None}
+
+
+async def test_error_mid_task_fails_only_at_index():
+    inj = injector("error_mid_task", at=1)
+    await inj.call("t", {}, ok_ticket)
+    with pytest.raises(UpstreamError) as e:
+        await inj.call("t", {}, ok_ticket)
+    assert e.value.status == 500
+    await inj.call("t", {}, ok_ticket)
+    assert [ev.call_index for ev in inj.events] == [1]
+
+
+async def test_latency_delays_then_passes_through():
+    inj = injector("latency", delay_s=0.01, jitter_s=0.01)
+    assert await inj.call("t", {}, ok_ticket) == await ok_ticket()
+    delay = inj.events[0].detail["delay_s"]
+    assert 0.01 <= delay <= 0.02
+    assert inj.calls[0].duration_ms >= 10
+
+
+async def test_malformed_json_truncates_to_invalid_json():
+    inj = injector("malformed_json")
+    out = await inj.call("t", {}, ok_ticket)
+    assert isinstance(out, RawText)
+    with pytest.raises(json.JSONDecodeError):
+        json.loads(out)
+    assert json.dumps(await ok_ticket()).startswith(out)
+
+
+async def test_malformed_json_ignores_scalars():
+    async def number(**kw):
+        return 12
+
+    inj = injector("malformed_json")
+    assert await inj.call("t", {}, number) == 12
+    assert inj.events == []
+
+
+async def test_stale_data_replays_oldest_response_for_same_args():
+    stock = iter([9, 4, 1])
+
+    async def check(sku):
+        return {"available": next(stock)}
+
+    rules = [FaultRule(fault="stale_data", call_indices=[2])]
+    inj = Injector(PolicyConfig(rules=rules))
+    assert (await inj.call("check", {"sku": "w"}, check))["available"] == 9
+    assert (await inj.call("check", {"sku": "w"}, check))["available"] == 4
+    assert (await inj.call("check", {"sku": "w"}, check))["available"] == 9  # stale
+    assert inj.events[0].detail == {"from_call": 0}
+
+
+async def test_stale_data_without_history_passes_through():
+    inj = injector("stale_data")
+    await inj.call("check", {"sku": "w"}, ok_ticket)
+    assert inj.events == []
+
+
+@pytest.mark.parametrize(
+    "params,expected",
+    [
+        ({"field": "id"}, {"id_v2": "T-1", "title": "x", "assignee": None}),
+        (
+            {"field": "id", "rename_to": "ticketId"},
+            {"ticketId": "T-1", "title": "x", "assignee": None},
+        ),
+        ({"field": "id", "mode": "drop"}, {"title": "x", "assignee": None}),
+    ],
+)
+async def test_schema_drift(params, expected):
+    inj = injector("schema_drift", **params)
+    assert await inj.call("t", {}, ok_ticket) == expected
+
+
+async def test_schema_drift_applies_to_every_object_in_a_list():
+    async def many(**kw):
+        return [{"id": 1}, {"id": 2}]
+
+    inj = injector("schema_drift", field="id", mode="drop")
+    assert await inj.call("t", {}, many) == [{}, {}]
+
+
+@pytest.mark.parametrize("fault", ["malformed_json", "schema_drift", "latency"])
+async def test_result_faults_are_deterministic(fault):
+    async def details(seed):
+        inj = injector(fault, seed=seed, **({"delay_s": 0} if fault == "latency" else {}))
+        for _ in range(10):
+            await inj.call("t", {}, ok_ticket)
+        return [e.detail for e in inj.events]
+
+    assert await details(5) == await details(5)
+
+
+async def test_fault_events_carry_rule_index():
+    rules = [FaultRule(tools="a", fault="rate_limit"), FaultRule(tools="b", fault="timeout")]
+    inj = Injector(PolicyConfig(rules=rules))
+    for tool in ("a", "b"):
+        with contextlib.suppress(ToolFault):
+            await inj.call(tool, {}, ok_ticket)
+    assert [(e.fault, e.rule) for e in inj.events] == [("rate_limit", 0), ("timeout", 1)]

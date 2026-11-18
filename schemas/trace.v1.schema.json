@@ -1,0 +1,393 @@
+{
+  "$defs": {
+    "FaultRecord": {
+      "additionalProperties": false,
+      "properties": {
+        "call_index": {
+          "title": "Call Index",
+          "type": "integer"
+        },
+        "tool": {
+          "title": "Tool",
+          "type": "string"
+        },
+        "fault": {
+          "title": "Fault",
+          "type": "string"
+        },
+        "rule": {
+          "description": "Index of the policy rule that fired.",
+          "title": "Rule",
+          "type": "integer"
+        },
+        "detail": {
+          "additionalProperties": true,
+          "title": "Detail",
+          "type": "object"
+        },
+        "schema_version": {
+          "const": 1,
+          "default": 1,
+          "title": "Schema Version",
+          "type": "integer"
+        },
+        "run_id": {
+          "title": "Run Id",
+          "type": "string"
+        },
+        "type": {
+          "const": "fault",
+          "default": "fault",
+          "title": "Type",
+          "type": "string"
+        }
+      },
+      "required": [
+        "call_index",
+        "tool",
+        "fault",
+        "rule",
+        "run_id"
+      ],
+      "title": "FaultRecord",
+      "type": "object"
+    },
+    "FaultRule": {
+      "additionalProperties": false,
+      "description": "One policy rule: which calls to target and which fault to inject.",
+      "properties": {
+        "tools": {
+          "default": "*",
+          "description": "Glob matched against the tool name.",
+          "title": "Tools",
+          "type": "string"
+        },
+        "fault": {
+          "description": "Registered fault name, e.g. 'timeout'.",
+          "title": "Fault",
+          "type": "string"
+        },
+        "probability": {
+          "default": 1.0,
+          "maximum": 1.0,
+          "minimum": 0.0,
+          "title": "Probability",
+          "type": "number"
+        },
+        "call_indices": {
+          "anyOf": [
+            {
+              "items": {
+                "type": "integer"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Only apply on these 0-based call indices within the run.",
+          "title": "Call Indices"
+        },
+        "params": {
+          "additionalProperties": true,
+          "title": "Params",
+          "type": "object"
+        }
+      },
+      "required": [
+        "fault"
+      ],
+      "title": "FaultRule",
+      "type": "object"
+    },
+    "OutcomeRecord": {
+      "additionalProperties": false,
+      "properties": {
+        "task_success": {
+          "title": "Task Success",
+          "type": "boolean"
+        },
+        "safety_violations": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Safety Violations",
+          "type": "array"
+        },
+        "final_message": {
+          "default": "",
+          "title": "Final Message",
+          "type": "string"
+        },
+        "claim": {
+          "anyOf": [
+            {
+              "enum": [
+                "claims_success",
+                "reports_failure",
+                "unclear"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "What the final message says happened; None if not judged.",
+          "title": "Claim"
+        },
+        "agent_error": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Agent Error"
+        },
+        "details": {
+          "additionalProperties": true,
+          "title": "Details",
+          "type": "object"
+        },
+        "schema_version": {
+          "const": 1,
+          "default": 1,
+          "title": "Schema Version",
+          "type": "integer"
+        },
+        "run_id": {
+          "title": "Run Id",
+          "type": "string"
+        },
+        "type": {
+          "const": "outcome",
+          "default": "outcome",
+          "title": "Type",
+          "type": "string"
+        },
+        "usage": {
+          "$ref": "#/$defs/Usage"
+        },
+        "wall_time_s": {
+          "default": 0.0,
+          "title": "Wall Time S",
+          "type": "number"
+        }
+      },
+      "required": [
+        "task_success",
+        "run_id"
+      ],
+      "title": "OutcomeRecord",
+      "type": "object"
+    },
+    "PolicyConfig": {
+      "additionalProperties": false,
+      "description": "A fault-injection policy, loaded from YAML.",
+      "properties": {
+        "schema_version": {
+          "const": 1,
+          "default": 1,
+          "title": "Schema Version",
+          "type": "integer"
+        },
+        "seed": {
+          "default": 0,
+          "title": "Seed",
+          "type": "integer"
+        },
+        "profile": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Profile"
+        },
+        "rules": {
+          "items": {
+            "$ref": "#/$defs/FaultRule"
+          },
+          "title": "Rules",
+          "type": "array"
+        }
+      },
+      "title": "PolicyConfig",
+      "type": "object"
+    },
+    "RunStart": {
+      "additionalProperties": false,
+      "properties": {
+        "schema_version": {
+          "const": 1,
+          "default": 1,
+          "title": "Schema Version",
+          "type": "integer"
+        },
+        "run_id": {
+          "title": "Run Id",
+          "type": "string"
+        },
+        "type": {
+          "const": "run_start",
+          "default": "run_start",
+          "title": "Type",
+          "type": "string"
+        },
+        "scenario": {
+          "title": "Scenario",
+          "type": "string"
+        },
+        "fault_class": {
+          "title": "Fault Class",
+          "type": "string"
+        },
+        "seed": {
+          "title": "Seed",
+          "type": "integer"
+        },
+        "agent": {
+          "title": "Agent",
+          "type": "string"
+        },
+        "policy": {
+          "$ref": "#/$defs/PolicyConfig"
+        }
+      },
+      "required": [
+        "run_id",
+        "scenario",
+        "fault_class",
+        "seed",
+        "agent",
+        "policy"
+      ],
+      "title": "RunStart",
+      "type": "object"
+    },
+    "ToolCallRecord": {
+      "additionalProperties": false,
+      "properties": {
+        "index": {
+          "title": "Index",
+          "type": "integer"
+        },
+        "tool": {
+          "title": "Tool",
+          "type": "string"
+        },
+        "args": {
+          "additionalProperties": true,
+          "title": "Args",
+          "type": "object"
+        },
+        "ok": {
+          "title": "Ok",
+          "type": "boolean"
+        },
+        "result": {
+          "default": null,
+          "title": "Result"
+        },
+        "error": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Error"
+        },
+        "duration_ms": {
+          "title": "Duration Ms",
+          "type": "number"
+        },
+        "schema_version": {
+          "const": 1,
+          "default": 1,
+          "title": "Schema Version",
+          "type": "integer"
+        },
+        "run_id": {
+          "title": "Run Id",
+          "type": "string"
+        },
+        "type": {
+          "const": "tool_call",
+          "default": "tool_call",
+          "title": "Type",
+          "type": "string"
+        }
+      },
+      "required": [
+        "index",
+        "tool",
+        "args",
+        "ok",
+        "duration_ms",
+        "run_id"
+      ],
+      "title": "ToolCallRecord",
+      "type": "object"
+    },
+    "Usage": {
+      "additionalProperties": false,
+      "properties": {
+        "input_tokens": {
+          "default": 0,
+          "title": "Input Tokens",
+          "type": "integer"
+        },
+        "output_tokens": {
+          "default": 0,
+          "title": "Output Tokens",
+          "type": "integer"
+        },
+        "cost_usd": {
+          "default": 0.0,
+          "title": "Cost Usd",
+          "type": "number"
+        }
+      },
+      "title": "Usage",
+      "type": "object"
+    }
+  },
+  "discriminator": {
+    "mapping": {
+      "fault": "#/$defs/FaultRecord",
+      "outcome": "#/$defs/OutcomeRecord",
+      "run_start": "#/$defs/RunStart",
+      "tool_call": "#/$defs/ToolCallRecord"
+    },
+    "propertyName": "type"
+  },
+  "oneOf": [
+    {
+      "$ref": "#/$defs/RunStart"
+    },
+    {
+      "$ref": "#/$defs/ToolCallRecord"
+    },
+    {
+      "$ref": "#/$defs/FaultRecord"
+    },
+    {
+      "$ref": "#/$defs/OutcomeRecord"
+    }
+  ]
+}

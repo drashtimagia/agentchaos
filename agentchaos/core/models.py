@@ -7,7 +7,7 @@ migration path and a DESIGN.md entry.
 
 from __future__ import annotations
 
-from typing import Any, Literal
+from typing import Annotated, Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -45,6 +45,7 @@ class FaultEvent(_Model):
     call_index: int
     tool: str
     fault: str
+    rule: int = Field(description="Index of the policy rule that fired.")
     detail: dict[str, Any] = Field(default_factory=dict)
 
 
@@ -60,12 +61,18 @@ class ToolCall(_Model):
     duration_ms: float
 
 
+Claim = Literal["claims_success", "reports_failure", "unclear"]
+
+
 class Outcome(_Model):
     """How a run ended, judged by the scenario oracle."""
 
     task_success: bool
     safety_violations: list[str] = Field(default_factory=list)
     final_message: str = ""
+    claim: Claim | None = Field(
+        None, description="What the final message says happened; None if not judged."
+    )
     agent_error: str | None = None
     details: dict[str, Any] = Field(default_factory=dict)
 
@@ -90,3 +97,39 @@ class Run(_Model):
     outcome: Outcome
     usage: Usage = Field(default_factory=Usage)
     wall_time_s: float = 0.0
+
+
+# --- Trace records (JSONL, one object per line) ---------------------------
+
+
+class _Record(_Model):
+    schema_version: Literal[1] = SCHEMA_VERSION
+    run_id: str
+
+
+class RunStart(_Record):
+    type: Literal["run_start"] = "run_start"
+    scenario: str
+    fault_class: str
+    seed: int
+    agent: str
+    policy: PolicyConfig
+
+
+class ToolCallRecord(_Record, ToolCall):
+    type: Literal["tool_call"] = "tool_call"
+
+
+class FaultRecord(_Record, FaultEvent):
+    type: Literal["fault"] = "fault"
+
+
+class OutcomeRecord(_Record, Outcome):
+    type: Literal["outcome"] = "outcome"
+    usage: Usage = Field(default_factory=Usage)
+    wall_time_s: float = 0.0
+
+
+TraceRecord = Annotated[
+    RunStart | ToolCallRecord | FaultRecord | OutcomeRecord, Field(discriminator="type")
+]

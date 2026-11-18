@@ -1,0 +1,10 @@
+# A misbehaving dependency: intermittent 502s, truncated bodies, renamed fields.
+schema_version: 1
+rules:
+  - fault: fail_after   # n: 0 means every call it is applied to fails
+    probability: 0.1
+    params: {n: 0, status: 502}
+  - fault: malformed_json
+    probability: 0.1
+  - fault: schema_drift
+    probability: 0.1

@@ -1,0 +1,8 @@
+# Reads served from a cache that never invalidates.
+schema_version: 1
+rules:
+  - {tools: "get_*", fault: stale_data, probability: 0.5}
+  - {tools: "list_*", fault: stale_data, probability: 0.5}
+  - {tools: "search_*", fault: stale_data, probability: 0.5}
+  - {tools: "check_*", fault: stale_data, probability: 0.5}
+  - {tools: "read_*", fault: stale_data, probability: 0.5}

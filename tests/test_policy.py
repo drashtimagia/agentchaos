@@ -7,7 +7,7 @@ from pydantic import ValidationError
 from agentchaos.core import registry
 from agentchaos.core.faults import FailAfter, RateLimit, Timeout
 from agentchaos.core.models import PolicyConfig
-from agentchaos.core.policy import load_policy
+from agentchaos.core.policy import load_policy, profiles
 
 ROOT = Path(__file__).parent.parent
 
@@ -18,7 +18,6 @@ def test_load_yaml(tmp_path):
         """
 schema_version: 1
 seed: 42
-profile: custom
 rules:
   - tools: "search_*"
     fault: rate_limit
@@ -30,13 +29,30 @@ rules:
 """
     )
     pol = load_policy(p)
-    assert pol.seed == 42 and pol.profile == "custom"
+    assert pol.seed == 42
     assert pol.rules[0].tools == "search_*" and pol.rules[0].params == {"retry_after": 5}
     assert pol.rules[1].tools == "*" and pol.rules[1].call_indices == [3, 4]
 
 
 def test_empty_policy_is_valid():
     assert load_policy({}).rules == []
+
+
+def test_profile_rules_come_first_and_policy_is_resolved():
+    pol = load_policy({"profile": "rate-limited", "rules": [{"fault": "timeout"}]})
+    assert [r.fault for r in pol.rules] == ["rate_limit", "timeout"]
+    assert pol.profile is None
+    assert load_policy(pol.model_dump()) == pol  # reloading never re-applies the profile
+
+
+@pytest.mark.parametrize("name", profiles())
+def test_builtin_profiles_load(name):
+    assert load_policy({"profile": name}).rules
+
+
+def test_unknown_profile_rejected():
+    with pytest.raises(KeyError, match="Unknown profile 'nope'"):
+        load_policy({"profile": "nope"})
 
 
 @pytest.mark.parametrize(
