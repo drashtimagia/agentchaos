@@ -120,12 +120,9 @@ def proxy(
     """Run an MCP proxy that injects faults between an agent and an upstream server."""
     from agentchaos.proxies.mcp_proxy import ChaosProxy, serve_http, serve_stdio, upstream_client
 
-    data = load_policy(policy).model_dump() if policy else {}
-    if profile:
-        data["rules"] = load_policy({"profile": profile}).model_dump()["rules"] + data.get(
-            "rules", []
-        )
-    pol = load_policy(data)
+    base = load_policy(policy) if policy else PolicyConfig()
+    profile_rules = load_policy({"profile": profile}).rules if profile else []
+    pol = base.model_copy(update={"rules": profile_rules + base.rules})
     run_id = uuid.uuid4().hex[:12]
     recorder = Recorder(trace) if trace else None
 
