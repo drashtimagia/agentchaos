@@ -1,6 +1,11 @@
 """Agent runners. ``make_agent`` turns a spec string into a fresh agent.
 
-Specs: ``scripted`` (no LLM), ``claude`` or ``claude:<model>`` (Claude Agent SDK).
+Specs:
+  ``scripted``                 — deterministic, no LLM
+  ``claude`` / ``claude:<m>``  — Claude Agent SDK
+  ``openai`` / ``openai:<m>``  — OpenAI Agents SDK  (extra: agentchaos[openai])
+  ``langgraph`` / ``langgraph:<m>`` — LangGraph ReAct (extra: agentchaos[langgraph])
+
 A run records its agent's ``name``, which is itself a valid spec, so replay can
 rebuild the same agent.
 """
@@ -21,4 +26,12 @@ def make_agent(spec: str, scenario: Scenario) -> Agent:
         from agentchaos.runners.claude_agent import ClaudeAgentRunner
 
         return ClaudeAgentRunner(model=arg or None)
-    raise ValueError(f"Unknown agent '{spec}'. Use 'scripted', 'claude' or 'claude:<model>'.")
+    if kind == "openai":
+        from agentchaos.runners.openai_agents import OpenAIAgentsRunner
+
+        return OpenAIAgentsRunner(model=arg or None)
+    if kind == "langgraph":
+        from agentchaos.runners.langgraph_agent import LangGraphRunner
+
+        return LangGraphRunner(model=arg or None)
+    raise ValueError(f"Unknown agent '{spec}'. Use 'scripted', 'claude', 'openai' or 'langgraph'.")

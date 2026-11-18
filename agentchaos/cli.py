@@ -14,11 +14,14 @@ from pydantic import TypeAdapter
 from rich.console import Console
 from rich.table import Table
 
+from agentchaos.cache import CostLimitExceeded, ResponseCache
+from agentchaos.ci_summary import write_summary
 from agentchaos.core import registry
 from agentchaos.core.models import PolicyConfig, Run, RunStart, TraceRecord
 from agentchaos.core.policy import load_policy, profiles
 from agentchaos.core.recorder import Recorder, find_run
 from agentchaos.execution import CLEAN, policy_for, replay, run_experiment
+from agentchaos.report import write_report
 from agentchaos.runners import make_agent
 from agentchaos.scoring.oracles import ClaudeJudge, Judge, KeywordJudge
 from agentchaos.scoring.score import summarize
@@ -168,6 +171,90 @@ def serve(
 
     server = mcp_server(registry.get_scenario(scenario)().create_server(), scenario)
     asyncio.run(serve_http(server, host, port) if transport == "http" else serve_stdio(server))
+
+
+@app.command()
+def bench(
+    scenarios: Annotated[str, typer.Option(help="Comma-sep scenarios, or 'all'.")] = "all",
+    agents: Annotated[str, typer.Option(help="Comma-sep agent specs.")] = "scripted",
+    profile: Annotated[str, typer.Option(help="Comma-sep profiles, or 'all'.")] = "all",
+    trials: Annotated[int, typer.Option(min=1, help="Runs per cell.")] = 10,
+    smoke: Annotated[bool, typer.Option(help="1 trial per cell, keyword judge.")] = False,
+    seed: Annotated[int, typer.Option(help="Base seed.")] = 0,
+    concurrency: Annotated[int, typer.Option(min=1)] = 4,
+    trace: Annotated[Path | None, typer.Option(help="JSONL trace path.")] = None,
+    report: Annotated[Path | None, typer.Option(help="HTML report path.")] = None,
+    ci: Annotated[bool, typer.Option(help="Write markdown to $GITHUB_STEP_SUMMARY.")] = False,
+    cache_dir: Annotated[Path | None, typer.Option(help="Response cache directory.")] = None,
+    max_cost: Annotated[float | None, typer.Option(min=0, help="Stop if cost exceeds $N.")] = None,
+    judge: Annotated[str, typer.Option(help="auto, keyword, claude or none.")] = "auto",
+) -> None:
+    """Run every (scenario, agent, profile) combination and produce a comparison report."""
+    if smoke:
+        trials = 1
+
+    all_scenario_names = list(registry.scenarios().keys())
+    all_profile_names = profiles()
+
+    scenario_names = all_scenario_names if scenarios == "all" else _split(scenarios)
+    profile_names = all_profile_names if profile == "all" else _split(profile)
+    agent_specs = _split(agents) or ["scripted"]
+
+    for spec in agent_specs:
+        for sname in scenario_names:
+            make_agent(spec, registry.get_scenario(sname)())  # validate before starting
+
+    cache = ResponseCache(
+        directory=cache_dir or (Path.home() / ".cache" / "agentchaos"),
+        max_cost_usd=max_cost,
+    )
+
+    bench_results: dict[str, dict[str, list[Run]]] = {}
+    trace_path = trace or Path("results") / f"{_stamp()}-bench.jsonl"
+
+    with Recorder(trace_path) as rec:
+        for sname in scenario_names:
+            bench_results[sname] = {}
+            for spec in agent_specs:
+                scen = registry.get_scenario(sname)()
+                policies: dict[str, PolicyConfig] = {CLEAN: PolicyConfig()}
+                for p in profile_names:
+                    policies[p] = load_policy({"profile": p})
+
+                j = _judge("keyword" if smoke else judge, spec)
+                try:
+                    runs = asyncio.run(
+                        run_experiment(
+                            scen,
+                            lambda s=scen, sp=spec: make_agent(sp, s),
+                            policies,
+                            trials=trials,
+                            base_seed=seed,
+                            concurrency=concurrency,
+                            recorder=rec,
+                            judge=j,
+                            cache=cache,
+                        )
+                    )
+                except CostLimitExceeded as e:
+                    err.print(f"[yellow]Cost limit reached: {e}[/yellow]")
+                    runs = []
+
+                bench_results[sname][spec] = runs
+                if runs:
+                    _print_table(runs, f"{sname} · {spec} · {trials} trials/class · seed {seed}")
+
+    console.print(f"trace: {trace_path}")
+    if cache.spent:
+        console.print(f"total cost: ${cache.spent:.4f}")
+
+    if report:
+        meta = f"agents: {agents} | scenarios: {scenarios} | trials: {trials} | seed: {seed}"
+        write_report(bench_results, report, title_meta=meta)
+        console.print(f"report: {report}")
+
+    if ci:
+        write_summary(bench_results)
 
 
 @app.command("faults")

@@ -20,6 +20,13 @@ claude = [
     "anthropic==2.10.0",
     "claude-agent-sdk==0.2.184",
 ]
+openai = [
+    "openai-agents>=0.0.19",
+]
+langgraph = [
+    "langgraph>=0.3.0",
+    "langchain-openai>=0.3.0",
+]
 
 [project.scripts]
 agentchaos = "agentchaos.cli:app"

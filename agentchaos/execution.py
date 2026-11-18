@@ -9,6 +9,7 @@ import uuid
 from collections.abc import Callable
 from typing import Any
 
+from agentchaos.cache import CostLimitExceeded, ResponseCache
 from agentchaos.core import registry
 from agentchaos.core.models import FaultRule, Outcome, OutcomeRecord, PolicyConfig, Run, RunStart
 from agentchaos.core.policy import Injector, pin_to_events
@@ -53,6 +54,7 @@ async def run_trial(
     run_id: str | None = None,
     recorder: Recorder | None = None,
     judge: Judge | None = None,
+    cache: ResponseCache | None = None,
 ) -> Run:
     run_id = run_id or uuid.uuid4().hex[:12]
     if recorder:
@@ -72,10 +74,23 @@ async def run_trial(
 
     start = time.perf_counter()
     result, agent_error = AgentResult(""), None
-    try:
-        result = await agent.run(scenario.prompt, tools)
-    except Exception as e:
-        agent_error = f"{type(e).__name__}: {e}"
+    cached_hit = False
+    if cache:
+        cached = cache.get(agent.name, scenario.name, fault_class, seed, policy)
+        if cached is not None:
+            result, cached_hit = cached, True
+    if not cached_hit:
+        try:
+            result = await agent.run(scenario.prompt, tools)
+        except Exception as e:
+            agent_error = f"{type(e).__name__}: {e}"
+        if cache and not agent_error:
+            cache.put(agent.name, scenario.name, fault_class, seed, policy, result)
+        if cache:
+            try:
+                cache.charge(result.usage.cost_usd)
+            except CostLimitExceeded:
+                raise
     wall = time.perf_counter() - start
 
     verdict = scenario.oracle(server.snapshot())
@@ -124,6 +139,7 @@ async def run_experiment(
     concurrency: int = 4,
     recorder: Recorder | None = None,
     judge: Judge | None = None,
+    cache: ResponseCache | None = None,
 ) -> list[Run]:
     """Run ``trials`` isolated runs per policy, at most ``concurrency`` at a time."""
     sem = asyncio.Semaphore(concurrency)
@@ -138,6 +154,7 @@ async def run_experiment(
                 seed=seed_for(base_seed, fault_class, trial),
                 recorder=recorder,
                 judge=judge,
+                cache=cache,
             )
 
     jobs = [one(fc, p, t) for fc, p in policies.items() for t in range(trials)]
