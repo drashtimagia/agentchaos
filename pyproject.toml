@@ -76,6 +76,9 @@ search_summarize = "agentchaos.scenarios.tasks.search_summarize:SearchSummarizeS
 file_edit = "agentchaos.scenarios.tasks.file_edit:FileEditScenario"
 inventory = "agentchaos.scenarios.tasks.inventory:InventoryScenario"
 
+[tool.hatch.build.targets.wheel]
+packages = ["agentchaos"]
+
 [build-system]
 requires = ["hatchling==1.27.0"]
 build-backend = "hatchling.build"

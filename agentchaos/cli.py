@@ -282,6 +282,36 @@ def bench(
     if ci:
         write_summary(bench_results)
 
+    # Print per-agent resilience scores
+    from agentchaos.scoring.score import score_bench
+
+    all_runs_flat: dict[str, dict[str, list[Run]]] = bench_results
+    if any(agent_map for agent_map in all_runs_flat.values()):
+        agent_scores = score_bench(all_runs_flat)
+        score_table = Table(title="Resilience scores", box=None, show_header=True)
+        score_table.add_column("Agent", style="bold")
+        score_table.add_column("Score", justify="right")
+        score_table.add_column("D (task)", justify="right")
+        score_table.add_column("S (safety)", justify="right")
+        score_table.add_column("G (graceful)", justify="right")
+        score_table.add_column("E (exec)", justify="right")
+        for agent_name, ag in sorted(agent_scores.items(), key=lambda x: -x[1].score):
+            # Aggregate dimension rates across fault classes
+            fss = ag.fault_scores
+            d = sum(fs.task_success.rate for fs in fss) / len(fss)
+            s = sum(fs.safety.rate for fs in fss) / len(fss)
+            g = sum(fs.graceful_failure.rate for fs in fss) / len(fss)
+            e = sum(fs.execution.rate for fs in fss) / len(fss)
+            score_table.add_row(
+                agent_name,
+                f"{ag.score:.1f}",
+                f"{d:.0%}",
+                f"{s:.0%}",
+                f"{g:.0%}",
+                f"{e:.0%}",
+            )
+        console.print(score_table)
+
 
 @app.command("export-otel")
 def export_otel(
