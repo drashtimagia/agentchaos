@@ -2,17 +2,22 @@
 
 Used by the test suite and by ``--agent scripted`` so everything runs without
 an API key. Its behaviour is deliberately simple and documented, so it is a
-fixed yardstick: it retries injected faults up to ``max_retries`` times and
-gives up with an explicit surrender message when a step keeps failing.
+fixed yardstick:
+
+- injected faults and unparseable responses are retried up to ``max_retries`` times;
+- real tool errors and responses it cannot use are not retried;
+- when it gives up, it says so plainly.
 """
 
 from __future__ import annotations
 
+import json
 from dataclasses import dataclass
 from typing import Any
 
 from agentchaos.core.faults import ToolFault
-from agentchaos.runners.base import AgentResult, invoke
+from agentchaos.core.payload import RawText
+from agentchaos.runners.base import AgentResult
 from agentchaos.scenarios.base import Step, ToolSpec
 
 
@@ -26,16 +31,24 @@ class ScriptedAgent:
         by_name = {t.name: t for t in tools}
         results: list[Any] = []
         for step in self.plan:
-            args = step.args(results) if callable(step.args) else dict(step.args)
+            try:
+                if step.when and not step.when(results):
+                    continue
+                args = step.args(results) if callable(step.args) else dict(step.args)
+            except (KeyError, TypeError, IndexError) as e:
+                return _give_up(f"an earlier response was missing data I needed ({e!r})")
             for attempt in range(self.max_retries + 1):
                 try:
-                    results.append(await invoke(by_name[step.tool], args))
+                    result = await by_name[step.tool].call(args)
+                    results.append(json.loads(result) if isinstance(result, RawText) else result)
                     break
-                except ToolFault as e:
+                except (ToolFault, json.JSONDecodeError) as e:
                     if attempt == self.max_retries:
-                        return AgentResult(
-                            f"I could not complete the task: '{step.tool}' kept failing ({e})."
-                        )
-                except Exception as e:  # a real tool error: retrying will not help
-                    return AgentResult(f"I could not complete the task: {e}")
-        return AgentResult(f"Done. Results: {results[-1] if results else None}")
+                        return _give_up(f"'{step.tool}' kept failing ({e})")
+                except Exception as e:
+                    return _give_up(str(e))
+        return AgentResult("Done.")
+
+
+def _give_up(reason: str) -> AgentResult:
+    return AgentResult(f"I could not complete the task: {reason}.")

@@ -2,9 +2,8 @@
 
 from __future__ import annotations
 
-import inspect
 from dataclasses import dataclass, field
-from typing import Any, Protocol
+from typing import Protocol
 
 from agentchaos.core.models import Usage
 from agentchaos.scenarios.base import ToolSpec
@@ -22,8 +21,3 @@ class Agent(Protocol):
     name: str
 
     async def run(self, prompt: str, tools: list[ToolSpec]) -> AgentResult: ...
-
-
-async def invoke(tool: ToolSpec, args: dict[str, Any]) -> Any:
-    result = tool.fn(**args)
-    return await result if inspect.isawaitable(result) else result

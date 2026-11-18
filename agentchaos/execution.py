@@ -10,10 +10,13 @@ from collections.abc import Callable
 from typing import Any
 
 from agentchaos.core import registry
-from agentchaos.core.models import FaultRule, Outcome, PolicyConfig, Run, Usage
-from agentchaos.core.policy import Injector
-from agentchaos.runners.base import Agent
+from agentchaos.core.models import FaultRule, Outcome, OutcomeRecord, PolicyConfig, Run, RunStart
+from agentchaos.core.policy import Injector, pin_to_events
+from agentchaos.core.recorder import RecordedRun, Recorder
+from agentchaos.runners import make_agent
+from agentchaos.runners.base import Agent, AgentResult
 from agentchaos.scenarios.base import Scenario, ToolSpec
+from agentchaos.scoring.oracles import Judge
 
 CLEAN = "clean"
 
@@ -48,29 +51,55 @@ async def run_trial(
     fault_class: str,
     seed: int,
     run_id: str | None = None,
+    recorder: Recorder | None = None,
+    judge: Judge | None = None,
 ) -> Run:
     run_id = run_id or uuid.uuid4().hex[:12]
+    if recorder:
+        recorder.write(
+            RunStart(
+                run_id=run_id,
+                scenario=scenario.name,
+                fault_class=fault_class,
+                seed=seed,
+                agent=agent.name,
+                policy=policy,
+            )
+        )
     server = scenario.create_server()
-    injector = Injector(policy, run_id=run_id, seed=seed)
+    injector = Injector(policy, seed=seed, sink=recorder.sink(run_id) if recorder else None)
     tools = [_wrap(t, injector) for t in server.tools()]
 
     start = time.perf_counter()
-    final, usage, agent_error = "", Usage(), None
+    result, agent_error = AgentResult(""), None
     try:
         result = await agent.run(scenario.prompt, tools)
-        final, usage = result.final_message, result.usage
     except Exception as e:
         agent_error = f"{type(e).__name__}: {e}"
     wall = time.perf_counter() - start
 
     verdict = scenario.oracle(server.snapshot())
+    violations = list(verdict.violations)
+    claim = None
+    if judge and not verdict.passed and result.final_message:
+        claim = await judge.classify(scenario.prompt, result.final_message)
+        if claim == "claims_success":
+            violations.append("hallucinated_success")
+
     outcome = Outcome(
         task_success=verdict.passed,
-        safety_violations=verdict.violations,
-        final_message=final,
+        safety_violations=violations,
+        final_message=result.final_message,
+        claim=claim,
         agent_error=agent_error,
         details=verdict.details,
     )
+    if recorder:
+        recorder.write(
+            OutcomeRecord(
+                run_id=run_id, usage=result.usage, wall_time_s=wall, **outcome.model_dump()
+            )
+        )
     return Run(
         run_id=run_id,
         scenario=scenario.name,
@@ -80,7 +109,7 @@ async def run_trial(
         calls=injector.calls,
         faults=injector.events,
         outcome=outcome,
-        usage=usage,
+        usage=result.usage,
         wall_time_s=wall,
     )
 
@@ -93,16 +122,45 @@ async def run_experiment(
     trials: int,
     base_seed: int = 0,
     concurrency: int = 4,
+    recorder: Recorder | None = None,
+    judge: Judge | None = None,
 ) -> list[Run]:
     """Run ``trials`` isolated runs per policy, at most ``concurrency`` at a time."""
     sem = asyncio.Semaphore(concurrency)
 
     async def one(fault_class: str, policy: PolicyConfig, trial: int) -> Run:
         async with sem:
-            seed = seed_for(base_seed, fault_class, trial)
             return await run_trial(
-                scenario, agent_factory(), policy, fault_class=fault_class, seed=seed
+                scenario,
+                agent_factory(),
+                policy,
+                fault_class=fault_class,
+                seed=seed_for(base_seed, fault_class, trial),
+                recorder=recorder,
+                judge=judge,
             )
 
     jobs = [one(fc, p, t) for fc, p in policies.items() for t in range(trials)]
     return list(await asyncio.gather(*jobs))
+
+
+async def replay(
+    recorded: RecordedRun, *, recorder: Recorder | None = None, judge: Judge | None = None
+) -> Run:
+    """Re-run a recorded run with the same scenario, agent and seed.
+
+    Each policy rule is pinned to the call indices it fired on in the recording,
+    so the same faults hit the same calls even if a nondeterministic agent
+    makes a different number of calls this time.
+    """
+    start = recorded.start
+    scenario = registry.get_scenario(start.scenario)()
+    return await run_trial(
+        scenario,
+        make_agent(start.agent, scenario),
+        pin_to_events(start.policy, list(recorded.faults)),
+        fault_class=start.fault_class,
+        seed=start.seed,
+        recorder=recorder,
+        judge=judge,
+    )

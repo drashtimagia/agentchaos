@@ -15,7 +15,7 @@ import os
 from typing import Any
 
 from agentchaos.core.models import Usage
-from agentchaos.runners.base import AgentResult, invoke
+from agentchaos.runners.base import AgentResult
 from agentchaos.scenarios.base import ToolSpec
 
 DEFAULT_MODEL = "claude-opus-5-5"
@@ -31,7 +31,7 @@ class ClaudeAgentRunner:
     def __init__(self, model: str | None = None, max_turns: int = 20):
         self.model = model or os.environ.get("AGENTCHAOS_MODEL", DEFAULT_MODEL)
         self.max_turns = max_turns
-        self.name = f"claude-agent-sdk:{self.model}"
+        self.name = f"claude:{self.model}"
 
     async def run(self, prompt: str, tools: list[ToolSpec]) -> AgentResult:
         try:
@@ -70,9 +70,11 @@ def _adapt(sdk: Any, spec: ToolSpec) -> Any:
     @sdk.tool(spec.name, spec.description, spec.parameters)
     async def handler(args: dict[str, Any]) -> dict[str, Any]:
         try:
-            result = await invoke(spec, args)
+            result = await spec.call(args)
         except Exception as e:  # faults and tool errors both reach the model as errors
             return {"content": [{"type": "text", "text": f"Error: {e}"}], "is_error": True}
-        return {"content": [{"type": "text", "text": json.dumps(result, default=str)}]}
+        # Strings (including truncated RawText bodies) go through verbatim.
+        text = result if isinstance(result, str) else json.dumps(result, default=str)
+        return {"content": [{"type": "text", "text": text}]}
 
     return handler
