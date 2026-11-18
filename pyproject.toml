@@ -1,10 +1,22 @@
 [project]
 name = "agentchaos"
-version = "0.1.0.dev0"
+version = "0.1.0"
 description = "Chaos engineering for AI agents: inject tool failures, score resilience."
 readme = "README.md"
 license = "Apache-2.0"
 requires-python = ">=3.12,<3.13"
+keywords = ["chaos-engineering", "ai-agents", "testing", "fault-injection", "llm"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: Apache Software License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Software Development :: Testing",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+    "Typing :: Typed",
+]
+
 dependencies = [
     "mcp==2.3.0",
     "mcp-types==2.3.0",
@@ -14,6 +26,12 @@ dependencies = [
     "typer==0.29.2",
     "uvicorn==0.54.0",
 ]
+
+[project.urls]
+Homepage = "https://github.com/drashtimagia/agentchaos"
+Repository = "https://github.com/drashtimagia/agentchaos"
+Issues = "https://github.com/drashtimagia/agentchaos/issues"
+Changelog = "https://github.com/drashtimagia/agentchaos/releases"
 
 [project.optional-dependencies]
 claude = [

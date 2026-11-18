@@ -1,5 +1,7 @@
 """AgentChaos: chaos engineering for AI agents."""
 
+__version__ = "0.1.0"
+
 from agentchaos.core import decorator as chaos
 from agentchaos.core.faults import (
     FailAfter,

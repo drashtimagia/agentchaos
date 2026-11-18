@@ -27,6 +27,32 @@ from agentchaos.scoring.oracles import ClaudeJudge, Judge, KeywordJudge
 from agentchaos.scoring.score import summarize
 
 app = typer.Typer(no_args_is_help=True, add_completion=False)
+
+
+def _version_callback(value: bool) -> None:
+    if value:
+        from agentchaos import __version__
+
+        typer.echo(f"agentchaos {__version__}")
+        raise typer.Exit()
+
+
+@app.callback()
+def _main(
+    version: Annotated[
+        bool,
+        typer.Option(
+            "--version",
+            "-V",
+            callback=_version_callback,
+            is_eager=True,
+            help="Show version and exit.",
+        ),
+    ] = False,
+) -> None:
+    """Chaos engineering for AI agents."""
+
+
 console = Console()
 err = Console(stderr=True)  # stdout belongs to the MCP protocol in stdio mode
 
