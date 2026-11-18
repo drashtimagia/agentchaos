@@ -1,0 +1,53 @@
+[project]
+name = "agentchaos"
+version = "0.1.0.dev0"
+description = "Chaos engineering for AI agents: inject tool failures, score resilience."
+readme = "README.md"
+license = "Apache-2.0"
+requires-python = ">=3.12,<3.13"
+dependencies = [
+    "pydantic==2.14.3",
+    "pyyaml==6.0.3",
+    "rich==15.0.0",
+    "typer==0.29.2",
+]
+
+[project.optional-dependencies]
+claude = [
+    "claude-agent-sdk==0.2.184",
+]
+
+[project.scripts]
+agentchaos = "agentchaos.cli:app"
+
+[project.entry-points."agentchaos.faults"]
+timeout = "agentchaos.core.faults:Timeout"
+rate_limit = "agentchaos.core.faults:RateLimit"
+fail_after = "agentchaos.core.faults:FailAfter"
+
+[project.entry-points."agentchaos.scenarios"]
+ticketing = "agentchaos.scenarios.tasks.ticketing:TicketingScenario"
+
+[build-system]
+requires = ["hatchling==1.27.0"]
+build-backend = "hatchling.build"
+
+[dependency-groups]
+dev = [
+    "pre-commit==4.7.0",
+    "pytest==9.2.0",
+    "pytest-asyncio==1.5.0",
+    "pytest-xdist==3.8.0",
+    "ruff==0.17.5",
+]
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "B", "UP", "SIM", "RUF"]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
