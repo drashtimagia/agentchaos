@@ -17,9 +17,18 @@ def test_wilson_bounds():
 def test_run_command_with_scripted_agent():
     res = runner.invoke(
         app,
-        ["run", "--scenario", "ticketing", "--faults", "timeout,rate_limit,fail_after",
-         "--trials", "10", "--agent", "scripted"],
-    )  # fmt: skip
+        [
+            "run",
+            "--scenario",
+            "ticketing",
+            "--faults",
+            "timeout,rate_limit,fail_after",
+            "--trials",
+            "10",
+            "--agent",
+            "scripted",
+        ],
+    )
     assert res.exit_code == 0, res.output
     for fc in ("clean", "timeout", "rate_limit", "fail_after"):
         assert fc in res.output

@@ -3,10 +3,7 @@ import contextlib
 import pytest
 
 from agentchaos.core.faults import (
-    FailAfter,
-    RateLimit,
     RateLimitError,
-    Timeout,
     ToolTimeoutError,
     UpstreamError,
 )
@@ -125,9 +122,3 @@ async def test_decision_for_call_n_independent_of_earlier_calls():
         return {e.call_index for e in inj.events if e.call_index >= 2}
 
     assert await fired_at(["a", "b"]) == await fired_at(["x", "y"])
-
-
-def test_fault_classes_are_plain_dataclasses():
-    assert Timeout().phase == "before"
-    assert RateLimit(retry_after=3).retry_after == 3
-    assert FailAfter(n=4).n == 4

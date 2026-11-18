@@ -10,7 +10,7 @@ from collections.abc import Callable
 from typing import Any
 
 from agentchaos.core import registry
-from agentchaos.core.models import FaultRule, Outcome, PolicyConfig, Run
+from agentchaos.core.models import FaultRule, Outcome, PolicyConfig, Run, Usage
 from agentchaos.core.policy import Injector
 from agentchaos.runners.base import Agent
 from agentchaos.scenarios.base import Scenario, ToolSpec
@@ -55,7 +55,7 @@ async def run_trial(
     tools = [_wrap(t, injector) for t in server.tools()]
 
     start = time.perf_counter()
-    final, usage, agent_error = "", None, None
+    final, usage, agent_error = "", Usage(), None
     try:
         result = await agent.run(scenario.prompt, tools)
         final, usage = result.final_message, result.usage
@@ -80,8 +80,8 @@ async def run_trial(
         calls=injector.calls,
         faults=injector.events,
         outcome=outcome,
+        usage=usage,
         wall_time_s=wall,
-        **({"usage": usage} if usage else {}),
     )
 
 

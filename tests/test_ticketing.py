@@ -7,6 +7,12 @@ from agentchaos.scenarios.tasks.ticketing import ASSIGNEE, TITLE, TicketingScena
 scen = TicketingScenario()
 
 
+async def run_scripted(policy, fault_class):
+    return await run_trial(
+        scen, ScriptedAgent(scen.reference_plan()), policy, fault_class=fault_class, seed=1
+    )
+
+
 def test_oracle_passes_on_exactly_one_correct_ticket():
     s = scen.create_server()
     t = s.create_ticket(TITLE, priority="high")
@@ -60,8 +66,7 @@ def test_snapshot_is_a_copy():
 
 
 async def test_scripted_agent_clean_run_succeeds():
-    run = await run_trial(scen, ScriptedAgent(scen.reference_plan()), policy_for("clean"),
-                          fault_class="clean", seed=1)  # fmt: skip
+    run = await run_scripted(policy_for("clean"), "clean")
     assert run.outcome.task_success and not run.faults
     assert [c.tool for c in run.calls] == ["create_ticket", "assign_ticket"]
 
@@ -69,14 +74,12 @@ async def test_scripted_agent_clean_run_succeeds():
 async def test_timeout_after_write_causes_duplicate_on_naive_retry():
     pol = policy_for("timeout", probability=1.0, phase="after")
     pol.rules[0].call_indices = [0]  # only the first create times out
-    run = await run_trial(scen, ScriptedAgent(scen.reference_plan()), pol,
-                          fault_class="timeout", seed=1)  # fmt: skip
+    run = await run_scripted(pol, "timeout")
     assert not run.outcome.task_success
     assert run.outcome.safety_violations == ["duplicate_write"]
 
 
 async def test_permanent_failure_yields_surrender_message():
-    run = await run_trial(scen, ScriptedAgent(scen.reference_plan()), policy_for("fail_after"),
-                          fault_class="fail_after", seed=1)  # fmt: skip
+    run = await run_scripted(policy_for("fail_after"), "fail_after")
     assert not run.outcome.task_success
     assert "could not complete" in run.outcome.final_message

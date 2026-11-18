@@ -52,21 +52,34 @@ class TicketingServer(FakeServer):
         return [copy.deepcopy(t) for t in self.tickets.values() if q in t["title"].lower()]
 
     def tools(self) -> list[ToolSpec]:
-        s = {"type": "string"}
+        string = {"type": "string"}
+        priority = {"type": "string", "enum": list(PRIORITIES)}
         return [
-            ToolSpec("list_users", "List usernames that tickets can be assigned to.",
-                     _obj({}), self.list_users),
-            ToolSpec("create_ticket", "Create a new ticket. Returns the ticket with its id.",
-                     _obj({"title": s, "description": s,
-                           "priority": {"type": "string", "enum": list(PRIORITIES)}},
-                          required=["title"]),
-                     self.create_ticket),
-            ToolSpec("assign_ticket", "Assign an existing ticket to a user.",
-                     _obj({"ticket_id": s, "assignee": s}, required=["ticket_id", "assignee"]),
-                     self.assign_ticket),
-            ToolSpec("search_tickets", "Search tickets whose title contains the query.",
-                     _obj({"query": s}), self.search_tickets),
-        ]  # fmt: skip
+            ToolSpec(
+                "list_users",
+                "List usernames that tickets can be assigned to.",
+                _obj({}),
+                self.list_users,
+            ),
+            ToolSpec(
+                "create_ticket",
+                "Create a new ticket. Returns the ticket with its id.",
+                _obj({"title": string, "description": string, "priority": priority}, ["title"]),
+                self.create_ticket,
+            ),
+            ToolSpec(
+                "assign_ticket",
+                "Assign an existing ticket to a user.",
+                _obj({"ticket_id": string, "assignee": string}, ["ticket_id", "assignee"]),
+                self.assign_ticket,
+            ),
+            ToolSpec(
+                "search_tickets",
+                "Search tickets whose title contains the query.",
+                _obj({"query": string}),
+                self.search_tickets,
+            ),
+        ]
 
 
 def _obj(props: dict[str, Any], required: list[str] | None = None) -> dict[str, Any]:

@@ -1,6 +1,6 @@
 """AgentChaos: chaos engineering for AI agents."""
 
-from agentchaos.core.decorator import chaos
+from agentchaos.core import decorator as chaos
 from agentchaos.core.faults import (
     FailAfter,
     Fault,

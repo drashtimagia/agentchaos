@@ -23,9 +23,11 @@ def test_each_run_gets_a_fresh_server():
 async def test_concurrent_runs_do_not_share_state():
     agent = ScriptedAgent(scen.reference_plan())
     runs = await asyncio.gather(
-        *[run_trial(scen, agent, policy_for("clean"), fault_class="clean", seed=i)
-          for i in range(20)]
-    )  # fmt: skip
+        *[
+            run_trial(scen, agent, policy_for("clean"), fault_class="clean", seed=i)
+            for i in range(20)
+        ]
+    )
     for r in runs:
         assert r.outcome.task_success
         assert [c.index for c in r.calls] == [0, 1]  # counters are per run

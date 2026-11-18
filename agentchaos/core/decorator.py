@@ -61,18 +61,6 @@ def tool(fn: Callable[..., Any] | None = None, *, name: str | None = None) -> An
                 return await result if inspect.isawaitable(result) else result
             return await injector.call(tool_name, call_args, f)
 
-        wrapper.__agentchaos_tool__ = tool_name  # type: ignore[attr-defined]
         return wrapper
 
     return decorate(fn) if fn is not None else decorate
-
-
-class _Chaos:
-    """Namespace exported as ``agentchaos.chaos``."""
-
-    tool = staticmethod(tool)
-    activate = staticmethod(activate)
-    current = staticmethod(current)
-
-
-chaos = _Chaos()

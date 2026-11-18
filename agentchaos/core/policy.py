@@ -13,7 +13,7 @@ from typing import Any
 import yaml
 
 from agentchaos.core import registry
-from agentchaos.core.faults import Fault, ToolCallContext
+from agentchaos.core.faults import CallNext, Fault, ToolCallContext
 from agentchaos.core.models import FaultEvent, FaultRule, PolicyConfig, ToolCall
 
 
@@ -96,7 +96,16 @@ class Injector:
         self._record(index, tool, args, fired, start, result=result)
         return result
 
-    def _record(self, index, tool, args, fired, start, result=None, error=None) -> None:
+    def _record(
+        self,
+        index: int,
+        tool: str,
+        args: dict[str, Any],
+        fired: list[tuple[str, dict[str, Any]]],
+        start: float,
+        result: Any = None,
+        error: str | None = None,
+    ) -> None:
         ms = (time.perf_counter() - start) * 1000
         self.calls.append(
             ToolCall(
@@ -113,8 +122,8 @@ class Injector:
             self.events.append(FaultEvent(call_index=index, tool=tool, fault=name, detail=detail))
 
 
-def _bind(fault: Fault, ctx: ToolCallContext, call_next):
-    async def wrapped():
+def _bind(fault: Fault, ctx: ToolCallContext, call_next: CallNext) -> CallNext:
+    async def wrapped() -> Any:
         return await fault.apply(ctx, call_next)
 
     return wrapped
