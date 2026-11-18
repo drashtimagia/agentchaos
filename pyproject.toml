@@ -27,9 +27,19 @@ langgraph = [
     "langgraph>=0.3.0",
     "langchain-openai>=0.3.0",
 ]
+otel = [
+    "opentelemetry-sdk>=1.27.0",
+    "opentelemetry-exporter-otlp-proto-grpc>=1.27.0",
+]
+pytest = [
+    "pytest>=7.0",
+]
 
 [project.scripts]
 agentchaos = "agentchaos.cli:app"
+
+[project.entry-points."pytest11"]
+agentchaos = "agentchaos.pytest_plugin"
 
 [project.entry-points."agentchaos.faults"]
 timeout = "agentchaos.core.faults:Timeout"

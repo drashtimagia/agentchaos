@@ -257,6 +257,18 @@ def bench(
         write_summary(bench_results)
 
 
+@app.command("export-otel")
+def export_otel(
+    trace: Annotated[Path, typer.Argument(help="JSONL trace file to export.")],
+    endpoint: Annotated[str, typer.Option(help="OTLP gRPC endpoint.")] = "http://localhost:4317",
+) -> None:
+    """Export a trace file as OpenTelemetry spans (requires agentchaos[otel])."""
+    from agentchaos.otel import export_trace
+
+    n = export_trace(trace, endpoint=endpoint)
+    console.print(f"exported {n} run(s) from {trace} to {endpoint}")
+
+
 @app.command("faults")
 def list_faults() -> None:
     """List registered faults (built-in and plugins)."""

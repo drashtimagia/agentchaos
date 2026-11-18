@@ -1,0 +1,90 @@
+name: AgentChaos Benchmark
+description: >
+  Run an AgentChaos benchmark against your agent and post the results as a
+  workflow step summary.  No API key is required when using the scripted agent.
+
+branding:
+  icon: zap
+  color: orange
+
+inputs:
+  scenarios:
+    description: "Comma-separated scenario names, or 'all'."
+    required: false
+    default: "all"
+  agents:
+    description: "Comma-separated agent specs (scripted, claude, openai, langgraph)."
+    required: false
+    default: "scripted"
+  profile:
+    description: "Comma-separated fault profiles, or 'all'."
+    required: false
+    default: "all"
+  trials:
+    description: "Trials per (scenario, agent, profile) cell."
+    required: false
+    default: "5"
+  smoke:
+    description: "Run one trial per cell for a quick sanity check."
+    required: false
+    default: "false"
+  seed:
+    description: "Base random seed."
+    required: false
+    default: "0"
+  python-version:
+    description: "Python version to use."
+    required: false
+    default: "3.12"
+  report-path:
+    description: "Path to write the HTML report."
+    required: false
+    default: "results/agentchaos-report.html"
+
+outputs:
+  report-path:
+    description: "Path to the generated HTML report."
+    value: ${{ steps.bench.outputs.report_path }}
+
+runs:
+  using: composite
+  steps:
+    - name: Set up uv
+      uses: astral-sh/setup-uv@v6
+      with:
+        version: "0.13.9"
+
+    - name: Install agentchaos
+      shell: bash
+      run: uv pip install agentchaos --system
+
+    - name: Run benchmark
+      id: bench
+      shell: bash
+      env:
+        ANTHROPIC_API_KEY: ${{ env.ANTHROPIC_API_KEY }}
+        OPENAI_API_KEY: ${{ env.OPENAI_API_KEY }}
+      run: |
+        SMOKE_FLAG=""
+        if [ "${{ inputs.smoke }}" = "true" ]; then
+          SMOKE_FLAG="--smoke"
+        fi
+        mkdir -p results
+        agentchaos bench \
+          --scenarios "${{ inputs.scenarios }}" \
+          --agents "${{ inputs.agents }}" \
+          --profile "${{ inputs.profile }}" \
+          --trials "${{ inputs.trials }}" \
+          --seed "${{ inputs.seed }}" \
+          --report "${{ inputs.report-path }}" \
+          --ci \
+          $SMOKE_FLAG
+        echo "report_path=${{ inputs.report-path }}" >> "$GITHUB_OUTPUT"
+
+    - name: Upload report artifact
+      uses: actions/upload-artifact@v4
+      if: always()
+      with:
+        name: agentchaos-report
+        path: ${{ inputs.report-path }}
+        if-no-files-found: ignore

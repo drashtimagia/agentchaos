@@ -1,0 +1,13 @@
+[project]
+name = "slack-fault"
+version = "0.1.0"
+description = "Example AgentChaos fault plugin: Slack rate limit."
+requires-python = ">=3.12"
+dependencies = ["agentchaos"]
+
+[project.entry-points."agentchaos.faults"]
+slack_rate_limit = "slack_fault:SlackRateLimit"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
