@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import inspect
 from abc import ABC, abstractmethod
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
@@ -17,6 +18,10 @@ class ToolSpec:
     parameters: dict[str, Any]  # JSON Schema for the arguments object
     fn: Callable[..., Awaitable[Any] | Any]
 
+    async def call(self, args: dict[str, Any]) -> Any:
+        result = self.fn(**args)
+        return await result if inspect.isawaitable(result) else result
+
 
 @dataclass
 class OracleResult:
@@ -29,11 +34,18 @@ class OracleResult:
 class Step:
     """One step of a scenario's reference plan, used by the scripted agent.
 
-    ``args`` may be a callable taking the results of earlier steps.
+    ``args`` may be a callable taking the results of earlier steps; the step is
+    skipped when ``when`` returns False for those results.
     """
 
     tool: str
     args: dict[str, Any] | Callable[[list[Any]], dict[str, Any]]
+    when: Callable[[list[Any]], bool] | None = None
+
+
+def obj(properties: dict[str, Any], required: list[str] | None = None) -> dict[str, Any]:
+    """JSON Schema for an object with the given properties."""
+    return {"type": "object", "properties": properties, "required": required or []}
 
 
 class FakeServer(ABC):

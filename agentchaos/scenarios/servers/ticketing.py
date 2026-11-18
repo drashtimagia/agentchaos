@@ -5,7 +5,7 @@ from __future__ import annotations
 import copy
 from typing import Any
 
-from agentchaos.scenarios.base import FakeServer, ToolSpec
+from agentchaos.scenarios.base import FakeServer, ToolSpec, obj
 
 PRIORITIES = ("low", "medium", "high")
 
@@ -58,29 +58,25 @@ class TicketingServer(FakeServer):
             ToolSpec(
                 "list_users",
                 "List usernames that tickets can be assigned to.",
-                _obj({}),
+                obj({}),
                 self.list_users,
             ),
             ToolSpec(
                 "create_ticket",
                 "Create a new ticket. Returns the ticket with its id.",
-                _obj({"title": string, "description": string, "priority": priority}, ["title"]),
+                obj({"title": string, "description": string, "priority": priority}, ["title"]),
                 self.create_ticket,
             ),
             ToolSpec(
                 "assign_ticket",
                 "Assign an existing ticket to a user.",
-                _obj({"ticket_id": string, "assignee": string}, ["ticket_id", "assignee"]),
+                obj({"ticket_id": string, "assignee": string}, ["ticket_id", "assignee"]),
                 self.assign_ticket,
             ),
             ToolSpec(
                 "search_tickets",
                 "Search tickets whose title contains the query.",
-                _obj({"query": string}),
+                obj({"query": string}),
                 self.search_tickets,
             ),
         ]
-
-
-def _obj(props: dict[str, Any], required: list[str] | None = None) -> dict[str, Any]:
-    return {"type": "object", "properties": props, "required": required or []}
