@@ -41,11 +41,13 @@ uv run agentchaos run --policy my-policy.yaml --trials 20
 ```python
 from agentchaos import Injector, PolicyConfig, chaos, load_policy
 
+
 @chaos.tool
 async def search(query: str) -> list[str]: ...
 
+
 with chaos.activate(Injector(load_policy("policy.yaml"))):
-    await search("open bugs")   # faults from the policy apply here
+    await search("open bugs")  # faults from the policy apply here
 ```
 
 ## Development
