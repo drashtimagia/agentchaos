@@ -1,0 +1,90 @@
+{
+  "$defs": {
+    "FaultRule": {
+      "additionalProperties": false,
+      "description": "One policy rule: which calls to target and which fault to inject.",
+      "properties": {
+        "tools": {
+          "default": "*",
+          "description": "Glob matched against the tool name.",
+          "title": "Tools",
+          "type": "string"
+        },
+        "fault": {
+          "description": "Registered fault name, e.g. 'timeout'.",
+          "title": "Fault",
+          "type": "string"
+        },
+        "probability": {
+          "default": 1.0,
+          "maximum": 1.0,
+          "minimum": 0.0,
+          "title": "Probability",
+          "type": "number"
+        },
+        "call_indices": {
+          "anyOf": [
+            {
+              "items": {
+                "type": "integer"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Only apply on these 0-based call indices within the run.",
+          "title": "Call Indices"
+        },
+        "params": {
+          "additionalProperties": true,
+          "title": "Params",
+          "type": "object"
+        }
+      },
+      "required": [
+        "fault"
+      ],
+      "title": "FaultRule",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "description": "A fault-injection policy, loaded from YAML.",
+  "properties": {
+    "schema_version": {
+      "const": 1,
+      "default": 1,
+      "title": "Schema Version",
+      "type": "integer"
+    },
+    "seed": {
+      "default": 0,
+      "title": "Seed",
+      "type": "integer"
+    },
+    "profile": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Profile"
+    },
+    "rules": {
+      "items": {
+        "$ref": "#/$defs/FaultRule"
+      },
+      "title": "Rules",
+      "type": "array"
+    }
+  },
+  "title": "PolicyConfig",
+  "type": "object"
+}
